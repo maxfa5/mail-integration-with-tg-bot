@@ -7,7 +7,7 @@ using Telegram.Bot.Types;
 
 public class MultiUserEmailService : IDisposable
 {
-    private readonly ConcurrentDictionary<long, UserData> _userDatas = new();
+    private readonly ConcurrentDictionary<long, UserData> _userDataMap = new();
     private readonly ITelegramBotClient _botClient;
     private CancellationTokenSource _globalCts;
 
@@ -21,41 +21,56 @@ public class MultiUserEmailService : IDisposable
     public bool AddUserEmailService(long userId, string host, int port, bool useSsl,
                                   string email, string password, TimeSpan checkInterval)
     {
-            if (_userDatas.ContainsKey(userId))
-            {
-                return false; // пользователь уже добавлен
-            }
-
         try
         {
+            // Всегда создаем новый сервис
             var userService = new UserEmailService(
                 host, port, useSsl, email, password,
                 _botClient, userId, checkInterval
             );
 
-            if (_userDatas.TryAdd(userId, new UserData())
+            // Если пользователь уже существует
+            if (_userDataMap.ContainsKey(userId))
             {
-                _ = userService.StartMonitoringAsync();
-                return true;
+                if (_userDataMap.TryGetValue(userId, out var existingUserData))
+                {
+                    // Останавливаем старый сервис
+                    existingUserData.UserEmailService?.StopMonitoring();
+                    existingUserData.UserEmailService?.Dispose();
+                    userService.SetLastMessageCount(existingUserData.LastMessageCount);
+                    // Устанавливаем новый сервис
+                    existingUserData.SetUserEmailService(userService);
+                    existingUserData.AddUserMail(email, password);
+                }
+            }
+            else
+            {
+                // Создаем нового пользователя
+                var newUserData = new UserData();
+                newUserData.SetUserEmailService(userService);
+                newUserData.AddUserMail(email, password);
+                _userDataMap.TryAdd(userId, newUserData);
             }
 
-            return false;
+            // Запускаем мониторинг
+            _ = userService.StartMonitoringAsync();
+            return true;
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"Ошибка добавления сервиса для пользователя {userId}: {ex.Message}");
+            Console.WriteLine($"Ошибка добавления сервиса: {ex.Message}");
             return false;
         }
     }
 
     public bool RemoveUserEmailService(long userId)
     {
-        if (_userDatas.TryGetValue(userId, out var userData))
+        if (_userDataMap.TryGetValue(userId, out var userData))
         {
             if (userData.UserEmailService != null)
             {
+                userData.LastMessageCount = userData.UserEmailService.GetLastMessageCount();
                 userData.UserEmailService.StopMonitoring();
-                userData.UserEmailService.Dispose();
             }
             //return _userDatas.TryRemove(userId, out _);
         }

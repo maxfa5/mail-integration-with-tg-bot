@@ -9,7 +9,7 @@ using Telegram.Bot.Types.Enums;
 
 public class UserEmailService : IDisposable
 {
-    private readonly ImapClient _client;
+    private  ImapClient _client;
     private readonly string _email;
     private readonly string _password;
     private readonly string _host;
@@ -21,7 +21,18 @@ public class UserEmailService : IDisposable
 
     private CancellationTokenSource _cts;
     private Task _monitoringTask;
-    private int _lastMessageCount { get; set; } = 0;
+    private bool _isDisposed;
+
+    private SemaphoreSlim _connectionLock = new SemaphoreSlim(1, 1);
+    private int _lastMessageCount  = 0;
+    public void SetLastMessageCount(int lastMessageCount)
+    {
+        this._lastMessageCount = lastMessageCount;
+    }
+    public int GetLastMessageCount( )
+    {
+       return _lastMessageCount;
+    }
     private DateTime _lastCheck { get; set; } = DateTime.MinValue;
 
     public UserEmailService(string host, int port, bool useSsl, string email, string password,
@@ -60,54 +71,74 @@ public class UserEmailService : IDisposable
 
     private async Task<bool> ConnectAndAuthenticateAsync()
     {
+        if (_isDisposed)
+        {
+            Console.WriteLine("❌ Сервис disposed, нельзя подключиться");
+            return false;
+        }
+
+        // Блокируем доступ к подключению
+        await _connectionLock.WaitAsync();
         try
         {
             Console.WriteLine($"Connecting to {_host}:{_port}...");
 
+            if (_client == null)
+            {
+                Console.WriteLine("Создаем новый ImapClient...");
+                _client = new ImapClient();
+            }
+
             if (!_client.IsConnected)
             {
-                _client.Connect(_host, _port, true);
+                await _client.ConnectAsync(_host, _port, _useSsl);
                 Console.WriteLine("Connected to server");
             }
 
             if (!_client.IsAuthenticated)
             {
-                Console.WriteLine($"Authenticating as {_email}... {_password}");
-                _client.Authenticate(_email, _password);
+                Console.WriteLine($"Authenticating as {_email}...");
+                await _client.AuthenticateAsync(_email, _password);
                 Console.WriteLine("Authentication successful");
             }
 
             Console.WriteLine($"✅ Успешное подключение для пользователя {_userId}");
             return true;
         }
+        catch (InvalidOperationException ex) when (ex.Message.Contains("pending"))
+        {
+            Console.WriteLine("❌ Операция подключения уже выполняется, пропускаем...");
+            return false;
+        }
         catch (AuthenticationException ex)
         {
             var errorMessage = $"❌ Ошибка аутентификации для {_email}\n" +
-                             "Для Mail.ru необходим ПАРОЛЬ ПРИЛОЖЕНИЯ!\n\n" +
-                             "📋 Как получить пароль приложения:\n" +
-                             "1. Зайдите в Настройки почты Mail.ru\n" +
-                             "2. Перейдите в раздел 'Безопасность'\n" +
-                             "3. Найдите 'Пароли для внешних приложений'\n" +
-                             "4. Создайте новый пароль для почты\n" +
-                             "5. Используйте этот пароль вместо основного\n\n" +
-                             "🔗 Ссылка: https://help.mail.ru/mail/security/protection/external";
-
+                             "Для Mail.ru необходим ПАРОЛЬ ПРИЛОЖЕНИЯ!";
             Console.WriteLine(errorMessage);
             await SendTelegramMessageAsync(errorMessage);
             return false;
         }
         catch (Exception ex)
         {
-            var errorMessage = $"❌ Ошибка подключения для {_email}: {ex.Message}";
-            Console.WriteLine(errorMessage);
-            await SendTelegramMessageAsync(errorMessage);
+            Console.WriteLine($"❌ Ошибка подключения: {ex.Message}");
             return false;
+        }
+        finally
+        {
+            _connectionLock.Release(); // Всегда отпускаем блокировку
         }
     }
 
     public async Task StartMonitoringAsync()
     {
+        if (_isDisposed)
+        {
+            Console.WriteLine("❌ Сервис disposed, нельзя запустить мониторинг");
+            return;
+        }
+
         Console.WriteLine("StartMonitoringAsync called");
+
         if (_monitoringTask != null && !_monitoringTask.IsCompleted)
         {
             Console.WriteLine("Monitoring already running");
@@ -129,14 +160,30 @@ public class UserEmailService : IDisposable
         _monitoringTask = Task.Run(() => MonitorEmailsAsync(_cts.Token), _cts.Token);
 
         Console.WriteLine("After MonitorEmailsAsync task started");
-        await SendTelegramMessageAsync("✅ Мониторинг почты запущен! Я буду присылать уведомления о новых письмах.");
+        await SendTelegramMessageAsync("✅ Мониторинг почты запущен!");
     }
-
     public void StopMonitoring()
     {
         Console.WriteLine("StopMonitoring called");
+
+        // Отменяем мониторинг
         _cts?.Cancel();
         _monitoringTask?.Wait();
+
+        // Отключаемся
+        if (_client?.IsConnected == true)
+        {
+            try
+            {
+                _client.Disconnect(false);
+                Console.WriteLine("Disconnected from server");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Ошибка отключения: {ex.Message}");
+            }
+        }
+
         _ = SendTelegramMessageAsync("⏹️ Мониторинг почты остановлен.");
     }
 
@@ -144,22 +191,30 @@ public class UserEmailService : IDisposable
     {
         Console.WriteLine("MonitorEmailsAsync started");
 
-        while (!cancellationToken.IsCancellationRequested)
+        while (!cancellationToken.IsCancellationRequested && !_isDisposed)
         {
             try
             {
                 Console.WriteLine($"Checking emails for {_email} at {DateTime.Now:HH:mm:ss}");
 
-                // Проверяем подключение
-                if (!_client.IsConnected || !_client.IsAuthenticated)
+                // Проверяем подключение с блокировкой
+                await _connectionLock.WaitAsync(cancellationToken);
+                try
                 {
-                    Console.WriteLine("Reconnecting...");
-                    var connected = await ConnectAndAuthenticateAsync();
-                    if (!connected)
+                    if (!_client.IsConnected || !_client.IsAuthenticated)
                     {
-                        await Task.Delay(TimeSpan.FromMinutes(5), cancellationToken);
-                        continue;
+                        Console.WriteLine("Reconnecting...");
+                        var connected = await ConnectAndAuthenticateAsync();
+                        if (!connected)
+                        {
+                            await Task.Delay(TimeSpan.FromMinutes(5), cancellationToken);
+                            continue;
+                        }
                     }
+                }
+                finally
+                {
+                    _connectionLock.Release();
                 }
 
                 var newMessages = await CheckForNewMessagesAsync();
@@ -183,9 +238,14 @@ public class UserEmailService : IDisposable
                 Console.WriteLine("Monitoring cancelled");
                 break;
             }
+            catch (ObjectDisposedException)
+            {
+                Console.WriteLine("Object disposed, stopping monitoring");
+                break;
+            }
             catch (Exception ex)
             {
-                Console.WriteLine($"Ошибка мониторинга для {_userId}: {ex.Message}");
+                Console.WriteLine($"Ошибка мониторинга: {ex.Message}");
                 await Task.Delay(TimeSpan.FromMinutes(1), cancellationToken);
             }
         }
@@ -307,13 +367,18 @@ public class UserEmailService : IDisposable
 
     public void Dispose()
     {
-        Console.WriteLine("Disposing UserEmailService");
+        if (_isDisposed) return;
+
+        Console.WriteLine("Disposing UserEmailService...");
+        _isDisposed = true;
+
+        // Останавливаем мониторинг
         StopMonitoring();
-        if (_client.IsConnected)
-        {
-            _client.Disconnect(true);
-        }
-        _client.Dispose();
+
+        // Dispose'им только здесь, когда точно больше не будем использовать
         _cts?.Dispose();
+        _client?.Dispose();
+
+        Console.WriteLine("UserEmailService disposed");
     }
 }

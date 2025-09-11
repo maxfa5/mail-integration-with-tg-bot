@@ -16,7 +16,23 @@ public class UserData : IDisposable
     public UserEmailService UserEmailService { get { return _userEmailService; } }
     public UserData()
     {
+        Console.WriteLine("UserData init");
         _globalCts = new CancellationTokenSource(); // Инициализируем здесь
+    }
+    private int _lastMessageCount = 0;
+    private DateTime _lastCheck = DateTime.MinValue;
+
+    private ConcurrentDictionary<string, string> _userMails = new();
+    public ConcurrentDictionary<string, string> UserMails
+    {
+        get { return new ConcurrentDictionary<string, string>(_userMails); }// Копия для иммутабельности
+    }
+    public void SetUserEmailService(UserEmailService service)
+    {
+        _userEmailService = service;
+        Console.WriteLine("UserEmailService установлен, запускаем автообновление...");
+
+        // Запускаем автообновление только после установки сервиса
         StartAutoUpdate(TimeSpan.FromMinutes(5));
     }
 
@@ -34,6 +50,7 @@ public class UserData : IDisposable
                 }
                 catch (OperationCanceledException)
                 {
+                    Console.WriteLine("AAAAAAAAAAAAAAAAAAAA");
                     break;
                 }
                 catch (Exception ex)
@@ -45,14 +62,6 @@ public class UserData : IDisposable
         }, _globalCts.Token);
     }
 
-    private int _lastMessageCount = 0;
-    private DateTime _lastCheck = DateTime.MinValue;
-
-    private ConcurrentDictionary<string, string> _userMails = new();
-    public ConcurrentDictionary<string, string> UserMails
-    {
-        get { return new ConcurrentDictionary<string, string>(_userMails); }// Копия для иммутабельности
-    }
         public bool AddUserMail(string email, string password)
     {
         return _userMails.TryAdd(email, password);
@@ -73,17 +82,13 @@ public class UserData : IDisposable
         set => _lastCheck = value;
     }
 
-    // Метод для установки UserEmailService (чтобы избежать null в UpdateDataAsync)
-    public void SetUserEmailService(UserEmailService service)
-    {
-        _userEmailService = service;
-    }
+
 
     public async Task UpdateDataAsync()
     {
         if (_userEmailService != null)
         {
-            LastMessageCount = await _userEmailService.GetCurrentMessageCountAsync();
+            _lastMessageCount = await _userEmailService.GetCurrentMessageCountAsync();
             Console.WriteLine($"Текущее количество сообщений: {LastMessageCount}");
             LastCheck = DateTime.Now;
         }
