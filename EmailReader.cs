@@ -11,10 +11,8 @@ class EmailReader
                                 string username, string password)
     {
         using var client = new ImapClient();
-        // Подключаемся к серверу
         client.Connect(host, port, useSsl);
 
-        // Аутентифицируемся
         try
         {
             client.Authenticate(username, password);

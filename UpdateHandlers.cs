@@ -116,10 +116,7 @@ public class UpdateHandlers : IUpdateHandler
             parseMode: ParseMode.Html,
             replyMarkup: replyMarkup
         );
-
-        // Отправляем второе сообщение с инструкциями
         
-
         await botClient.SendMessage(
             chatId: userId,
             text: _instructions,

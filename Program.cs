@@ -10,14 +10,14 @@ public static partial class Program
     public static async Task Main(string[]? args)
     {
 
+        DnsDiscoverer.DiscoverEmailServers("surgu.ru");
         var builder = Host.CreateApplicationBuilder(args);
-        var currentDirectory = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
         builder.Configuration.AddJsonFile("AppProperties.json", optional: false, reloadOnChange: true);
 
         builder.Services.AddHostedService<BotService>();
         builder.Services.Configure<TelegramBotSettings>(
-            builder.Configuration.GetSection("TelegramBotSettings"));
+        builder.Configuration.GetSection("TelegramBotSettings"));
 
         var host = builder.Build();
 

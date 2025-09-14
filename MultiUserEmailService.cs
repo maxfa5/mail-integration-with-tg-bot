@@ -23,36 +23,30 @@ public class MultiUserEmailService : IDisposable
     {
         try
         {
-            // Всегда создаем новый сервис
             var userService = new UserEmailService(
                 host, port, useSsl, email, password,
                 _botClient, userId, checkInterval
             );
 
-            // Если пользователь уже существует
             if (_userDataMap.ContainsKey(userId))
             {
                 if (_userDataMap.TryGetValue(userId, out var existingUserData))
                 {
-                    // Останавливаем старый сервис
                     existingUserData.UserEmailService?.StopMonitoring();
                     existingUserData.UserEmailService?.Dispose();
                     userService.SetLastMessageCount(existingUserData.LastMessageCount);
-                    // Устанавливаем новый сервис
                     existingUserData.SetUserEmailService(userService);
                     existingUserData.AddUserMail(email, password);
                 }
             }
             else
             {
-                // Создаем нового пользователя
                 var newUserData = new UserData();
                 newUserData.SetUserEmailService(userService);
                 newUserData.AddUserMail(email, password);
                 _userDataMap.TryAdd(userId, newUserData);
             }
 
-            // Запускаем мониторинг
             _ = userService.StartMonitoringAsync();
             return true;
         }
@@ -72,7 +66,6 @@ public class MultiUserEmailService : IDisposable
                 userData.LastMessageCount = userData.UserEmailService.GetLastMessageCount();
                 userData.UserEmailService.StopMonitoring();
             }
-            //return _userDatas.TryRemove(userId, out _);
         }
         return true; //TODO!!
     }
