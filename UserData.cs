@@ -17,7 +17,7 @@ public class UserData : IDisposable
     public UserData()
     {
         Console.WriteLine("UserData init");
-        _globalCts = new CancellationTokenSource(); // Инициализируем здесь
+        _globalCts = new CancellationTokenSource();
     }
     private int _lastMessageCount = 0;
     private DateTime _lastCheck = DateTime.MinValue;
@@ -25,14 +25,13 @@ public class UserData : IDisposable
     private ConcurrentDictionary<string, string> _userMails = new();
     public ConcurrentDictionary<string, string> UserMails
     {
-        get { return new ConcurrentDictionary<string, string>(_userMails); }// Копия для иммутабельности
+        get { return new ConcurrentDictionary<string, string>(_userMails); }
     }
     public void SetUserEmailService(UserEmailService service)
     {
         _userEmailService = service;
         Console.WriteLine("UserEmailService установлен, запускаем автообновление...");
 
-        // Запускаем автообновление только после установки сервиса
         StartAutoUpdate(TimeSpan.FromMinutes(5));
     }
 

@@ -62,7 +62,7 @@ public class UpdateHandlers : IUpdateHandler
             else if (text.StartsWith("/stop_monitor") || text.StartsWith("⏹️ Остановить мониторинг"))
             {
                 var success = _emailService.RemoveUserEmailService(userId);
-                _ = await botClient.SendMessage(
+                await botClient.SendMessage(
                     userId,
                     success ? "⏹️ Мониторинг остановлен!" : "❌ Мониторинг не был активен"
                 );

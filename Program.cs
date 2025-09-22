@@ -10,7 +10,7 @@ public static partial class Program
     public static async Task Main(string[]? args)
     {
 
-        DnsDiscoverer.DiscoverEmailServers("surgu.ru");
+        //DnsDiscoverer.DiscoverEmailServers("surgu.ru");
         var builder = Host.CreateApplicationBuilder(args);
 
         builder.Configuration.AddJsonFile("AppProperties.json", optional: false, reloadOnChange: true);
