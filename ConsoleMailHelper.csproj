@@ -19,6 +19,9 @@
   </ItemGroup>
 
   <ItemGroup>
+    <EmbeddedResource Include="AppProperties.json пример">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
     <EmbeddedResource Include="AppProperties.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </EmbeddedResource>
