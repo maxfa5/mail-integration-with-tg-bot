@@ -9,10 +9,11 @@ public class UpdateHandlers : IUpdateHandler
     private readonly ITelegramBotClient _botClient;
     private readonly TelegramBotSettings _settings;
     private readonly MultiUserEmailService _emailService;
-    private readonly String _instructions = "📋 <b>Чтобы начать, отправьте:</b>\n" +
-                         "<code>/start_monitor ваш_email ваш_пароль</code>\n\n" +
-                         "🔐 <b>Для Mail.ru используйте ПАРОЛЬ ПРИЛОЖЕНИЯ!</b>\n" +
-                         "Как получить: Настройки → Безопасность → Пароли для внешних приложений";
+    private readonly String _instructions = "📋 Чтобы начать, отправьте:\n" +
+                         "/start_monitor ваш_email ваш_пароль\n\n" +
+                         "🔐 Для Mail.ru используйте специалиальный пароль!\n" +
+                         "Как получить: Настройки → Безопасность → Пароли для внешних приложений" +
+                         "🔐 Для Mail.surgu.ru используйте ПАРОЛЬ от почты!\n";
     public UpdateHandlers(ITelegramBotClient botClient, TelegramBotSettings settings, MultiUserEmailService emailService)
     {
         _botClient = botClient;
@@ -49,7 +50,7 @@ public class UpdateHandlers : IUpdateHandler
                     var email = parts[1];
                     var password = parts[2];
                     var success = _emailService.AddUserEmailService(
-                        userId, "imap.mail.ru", 993, true,
+                        userId, "mail.surgu.ru", 993, true,
                         email, password, TimeSpan.FromMinutes(2)
                     );
 
@@ -89,7 +90,7 @@ public class UpdateHandlers : IUpdateHandler
 
     private async Task HandleStartCommand(ITelegramBotClient botClient, long userId)
     {
-        var welcomeMessage = "🤖 <b>Добро пожаловать в Email Monitor Bot!</b>\n\n" +
+        var welcomeMessage = "🤖 Добро пожаловать в Email Monitor Bot!\n\n" +
                            "📧 Я помогу вам отслеживать новые письма на вашей почте";
 
         var replyMarkup = new ReplyKeyboardMarkup(new[]
@@ -126,14 +127,15 @@ public class UpdateHandlers : IUpdateHandler
 
     private async Task HandleUnknownCommand(ITelegramBotClient botClient, long userId)
     {
-        var helpMessage = "🤔 <b>Неизвестная команда</b>\n\n" +
-                        "📋 <b>Доступные команды:</b>\n" +
+        var helpMessage = "🤔 Неизвестная команда\n\n" +
+                        "📋 Доступные команды:\n" +
                         "/start - Показать справку\n" +
                         "/start_monitor - Запустить мониторинг почты\n" +
                         "/stop_monitor - Остановить мониторинг\n" +
                         "/status - Статус мониторинга\n\n" +
-                        "📝 <b>Пример:</b>\n" +
-                        "<code>/start_monitor example@mail.ru ваш_пароль</code>";
+                        "📝 Пример:\n" +
+                        " '''/start_monitor example@mail.ru ваш_пароль ''' " +
+                        " ''' /start_monitor example@edu.surgu.ru ваш_пароль '''";
 
         await botClient.SendMessage(
             chatId: userId,

@@ -67,31 +67,20 @@ public class MultiUserEmailService : IDisposable
                 userData.UserEmailService.StopMonitoring();
             }
         }
-        return true; //TODO!!
+        return true;
     }
 
     public string GetUserStatus(long userId)
     {
-        //if (_userDatas.TryGetValue(userId, out var service))
-        //{
-        //    return service.GetStatus();
-        //}
+        if (_userDataMap.TryGetValue(userId, out var service))
+        {
+            return service.GetStatus();
+        }
         return "Сервис мониторинга не активен";
     }
 
-    //public void StopAllServices()
-    //{
-    //    foreach (var (userId, service) in _userDatas.GetUserMailsget())
-    //    {
-    //        service.StopMonitoring();
-    //        service.Dispose();
-    //    }
-    //    _userDatas.getMails.GetUserMailsget().Clear();
-    //}
-
     public void Dispose()
     {
-        //StopAllServices();
         _globalCts?.Dispose();
     }
 }

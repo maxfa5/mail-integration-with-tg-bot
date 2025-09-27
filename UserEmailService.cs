@@ -77,7 +77,6 @@ public class UserEmailService : IDisposable
             return false;
         }
 
-        // Блокируем доступ к подключению
         await _connectionLock.WaitAsync();
         try
         {
@@ -113,7 +112,7 @@ public class UserEmailService : IDisposable
         catch (AuthenticationException ex)
         {
             var errorMessage = $"❌ Ошибка аутентификации для {_email}\n" +
-                             "Для Mail.ru необходим ПАРОЛЬ ПРИЛОЖЕНИЯ!";
+                             "Для Mail.ru необходим спец.Пароль!";
             Console.WriteLine(errorMessage);
             await SendTelegramMessageAsync(errorMessage);
             return false;
@@ -125,7 +124,7 @@ public class UserEmailService : IDisposable
         }
         finally
         {
-            _connectionLock.Release(); // Всегда отпускаем блокировку
+            _connectionLock.Release(); 
         }
     }
 
@@ -145,7 +144,6 @@ public class UserEmailService : IDisposable
             return;
         }
 
-        // Сначала пробуем подключиться
         var connected = await ConnectAndAuthenticateAsync();
         if (!connected)
         {
@@ -154,23 +152,17 @@ public class UserEmailService : IDisposable
         }
 
         _cts = new CancellationTokenSource();
-        Console.WriteLine("Before MonitorEmailsAsync");
 
-        // Запускаем мониторинг
         _monitoringTask = Task.Run(() => MonitorEmailsAsync(_cts.Token), _cts.Token);
 
-        Console.WriteLine("After MonitorEmailsAsync task started");
-        await SendTelegramMessageAsync("✅ Мониторинг почты запущен!");
     }
     public void StopMonitoring()
     {
         Console.WriteLine("StopMonitoring called");
 
-        // Отменяем мониторинг
         _cts?.Cancel();
         _monitoringTask?.Wait();
 
-        // Отключаемся
         if (_client?.IsConnected == true)
         {
             try
@@ -197,7 +189,6 @@ public class UserEmailService : IDisposable
             {
                 Console.WriteLine($"Checking emails for {_email} at {DateTime.Now:HH:mm:ss}");
 
-                // Проверяем подключение с блокировкой
                 await _connectionLock.WaitAsync(cancellationToken);
                 try
                 {
@@ -276,36 +267,36 @@ public class UserEmailService : IDisposable
             string newMessages;
             if (countNewMessages > 3)
             {
-                newMessages = $"📧 <b>Новые письма для {_email}:</b>\n\n";
+                newMessages = $"📧 Новые письма для {_email}:\n\n";
                 for (int i = _lastMessageCount; i < 3; i++)
                 {
                     var message = await inbox.GetMessageAsync(i, _cts.Token);
 
                     newMessages += $"━━━━━━━━━━━━━━━━━━━━\n";
-                    newMessages += $"📨 <b>От:</b> {FormatSender(message.From)}\n";
-                    newMessages += $"📋 <b>Тема:</b> {message.Subject}\n";
-                    newMessages += $"📅 <b>Дата:</b> {message.Date.LocalDateTime:dd.MM.yyyy HH:mm}\n";
+                    newMessages += $"📨 От: {FormatSender(message.From)}\n";
+                    newMessages += $"📋 Тема: {message.Subject}\n";
+                    newMessages += $"📅 Дата: {message.Date.LocalDateTime:dd.MM.yyyy HH:mm}\n";
 
                 }
                 newMessages += "...";
             }
             else
             {
-                newMessages = $"📧 <b>Новые письма для {_email}:</b>\n\n";
+                newMessages = $"📧 Новые письма для {_email}:\n\n";
                 for (int i = _lastMessageCount; i < currentMessageCount; i++)
                 {
                     var message = await inbox.GetMessageAsync(i, _cts.Token);
 
                     newMessages += $"━━━━━━━━━━━━━━━━━━━━\n";
-                    newMessages += $"📨 <b>От:</b> {FormatSender(message.From)}\n";
-                    newMessages += $"📋 <b>Тема:</b> {message.Subject}\n";
-                    newMessages += $"📅 <b>Дата:</b> {message.Date.LocalDateTime:dd.MM.yyyy HH:mm}\n";
+                    newMessages += $"📨 От: {FormatSender(message.From)}\n";
+                    newMessages += $"📋 Тема: {message.Subject}\n";
+                    newMessages += $"📅 Дата: {message.Date.LocalDateTime:dd.MM.yyyy HH:mm}\n";
 
                     if (!string.IsNullOrEmpty(message.TextBody))
                     {
                         var preview = message.TextBody.Trim();
                         preview = preview.Length > 100 ? preview.Substring(0, 100) + "..." : preview;
-                        newMessages += $"📝 <b>Текст:</b> {EscapeHtml(preview)}\n";
+                        newMessages += $"📝 Текст: {preview}\n";
                     }
                 }
             }
@@ -363,19 +354,15 @@ public class UserEmailService : IDisposable
             from[0].ToString();
     }
 
-    private string EscapeHtml(string text) => text.Replace("<", "&lt;").Replace(">", "&gt;");
 
     public void Dispose()
     {
         if (_isDisposed) return;
 
-        Console.WriteLine("Disposing UserEmailService...");
         _isDisposed = true;
 
-        // Останавливаем мониторинг
         StopMonitoring();
 
-        // Dispose'им только здесь, когда точно больше не будем использовать
         _cts?.Dispose();
         _client?.Dispose();
 

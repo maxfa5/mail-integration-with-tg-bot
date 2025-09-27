@@ -16,12 +16,10 @@ public class UserData : IDisposable
     public UserEmailService UserEmailService { get { return _userEmailService; } }
     public UserData()
     {
-        Console.WriteLine("UserData init");
         _globalCts = new CancellationTokenSource();
     }
     private int _lastMessageCount = 0;
     private DateTime _lastCheck = DateTime.MinValue;
-
     private ConcurrentDictionary<string, string> _userMails = new();
     public ConcurrentDictionary<string, string> UserMails
     {
@@ -30,8 +28,6 @@ public class UserData : IDisposable
     public void SetUserEmailService(UserEmailService service)
     {
         _userEmailService = service;
-        Console.WriteLine("UserEmailService установлен, запускаем автообновление...");
-
         StartAutoUpdate(TimeSpan.FromMinutes(5));
     }
 
@@ -43,18 +39,13 @@ public class UserData : IDisposable
             {
                 try
                 {
-                    Console.WriteLine("🔄 Автоматическое обновление данных...");
+                    Console.WriteLine("Автоматическое обновление данных...");
                     await UpdateDataAsync();
                     await Task.Delay(interval, _globalCts.Token);
                 }
-                catch (OperationCanceledException)
-                {
-                    Console.WriteLine("AAAAAAAAAAAAAAAAAAAA");
-                    break;
-                }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"❌ Ошибка автоматического обновления: {ex.Message}");
+                    Console.WriteLine($"Ошибка автоматического обновления: {ex.Message}");
                     await Task.Delay(TimeSpan.FromMinutes(1), _globalCts.Token);
                 }
             }
@@ -103,5 +94,19 @@ public class UserData : IDisposable
         _autoUpdateTask?.Wait();
         _globalCts?.Dispose();
         _userEmailService?.Dispose();
+    }
+
+    public string GetStatus()
+    {
+        string result = "";
+        foreach (var userMail in _userMails)
+        {
+          if (!string.IsNullOrEmpty(userMail.Value))
+              {
+                result += _userEmailService.GetStatus();
+              }
+          }
+        
+        return result;
     }
 }

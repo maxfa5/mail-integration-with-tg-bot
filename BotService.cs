@@ -32,7 +32,7 @@ public class BotService : BackgroundService
             cancellationToken: stoppingToken
         );
 
-        Console.WriteLine("Мультипользовательский мониторинг почты готов к работе!");
+        Console.WriteLine("Мониторинг почты готов к работе!");
 
         while (!stoppingToken.IsCancellationRequested)
         {
